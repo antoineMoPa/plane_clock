@@ -89,7 +89,6 @@
         <button id="btn-737">Test 7:37</button>
         <button id="btn-747">Test 7:47</button>
         <button id="btn-757">Test 7:57</button>
-        <button id="btn-911">Test 9:11</button>
         <button id="btn-reset">Reset</button>
     </div>
 
@@ -322,8 +321,6 @@
                 showModel('boeing_737.glb');
             } else if (hourMinute === '07:57' || hourMinute === '19:57') {
                 showModel('boeing_757.glb');
-            } else if (hourMinute === '09:11' || hourMinute === '21:11') {
-                showModel('porsche_911.glb');
             } else {
                 showModel('clock.glb');
             }
@@ -342,11 +339,6 @@
 
         document.getElementById('btn-757').addEventListener('click', () => {
             simulatedTime = { hours: 7, minutes: 57, seconds: 0 };
-            updateClock();
-        });
-
-        document.getElementById('btn-911').addEventListener('click', () => {
-            simulatedTime = { hours: 9, minutes: 11, seconds: 0 };
             updateClock();
         });
 
