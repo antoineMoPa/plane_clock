@@ -354,9 +354,9 @@
             const time = (Date.now() * 0.001) % 30;
             customPass.material.uniforms.time.value = time;
 
-            // Rotate the model using cosine (oscillates 180 degrees)
+            // Rotate the model using cosine (oscillates 180 degrees, seamless 30s loop)
             if (currentModel && modelVisible) {
-                currentModel.rotation.y = Math.cos(time * 0.25) * (Math.PI / 2);
+                currentModel.rotation.y = Math.cos(time * (Math.PI * 2 / 30)) * (Math.PI / 2);
             }
 
             composer.render();
