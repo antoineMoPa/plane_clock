@@ -3,11 +3,6 @@ uniform float time;
 varying vec2 vUv;
 
 void main() {
-    // EXPERIMENT WITH THIS SHADER!
-    // vUv is the texture coordinate (0.0 to 1.0)
-    // tDiffuse is the rendered scene
-    // time is animated
-
     float delta = 0.003;
 
     vec4 base = texture2D(tDiffuse, vUv);
