@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Clock</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        #clock {
+            font-size: 15vw;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 20px #0f0;
+            position: absolute;
+            bottom: 15vh;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        #model-container {
+            position: absolute;
+            width: 100%;
+            height: 50vh;
+            display: none;
+            top: 5vh;
+            left: 0;
+        }
+
+        #model-container.active {
+            display: block;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        button {
+            background: transparent;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 15px 25px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.4);
+            text-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div id="clock"></div>
+    <div id="model-container"></div>
+    <div id="controls">
+        <button id="btn-737">Test 7:37</button>
+        <button id="btn-747">Test 7:47</button>
+        <button id="btn-757">Test 7:57</button>
+        <button id="btn-911">Test 9:11</button>
+        <button id="btn-reset">Reset</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+        const clockElement = document.getElementById('clock');
+        const modelContainer = document.getElementById('model-container');
+
+        let scene, camera, renderer, controls, composer;
+        let currentModel = null;
+        let currentModelPath = null;
+        let modelVisible = false;
+        let simulatedTime = null;
+        let customShader = null;
+
+        // Load fragment shader from file
+        async function loadShader() {
+            try {
+                const response = await fetch('fragment.glsl');
+                if (!response.ok) {
+                    throw new Error(`Failed to load shader: ${response.status} ${response.statusText}`);
+                }
+                const fragmentShaderCode = await response.text();
+
+                customShader = {
+                    uniforms: {
+                        'tDiffuse': { value: null },
+                        'time': { value: 0.0 }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: fragmentShaderCode
+                };
+
+                console.log('✓ Shader loaded successfully');
+            } catch (error) {
+                console.error('❌ Shader loading error:', error);
+                throw error;
+            }
+        }
+
+        // Initialize Three.js
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            // Use window dimensions initially since container is hidden
+            const containerWidth = window.innerWidth;
+            const containerHeight = window.innerHeight * 0.5; // 50vh
+
+            camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(containerWidth, containerHeight);
+            renderer.debug.checkShaderErrors = true;
+            modelContainer.appendChild(renderer.domElement);
+
+            // Add WebGL error logging
+            const gl = renderer.getContext();
+            const oldGetShaderInfoLog = gl.getShaderInfoLog.bind(gl);
+            gl.getShaderInfoLog = function(shader) {
+                const log = oldGetShaderInfoLog(shader);
+                if (log && log.length > 0) {
+                    console.error('❌ WebGL Shader Error:', log);
+                }
+                return log;
+            };
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            // Setup post-processing
+            composer = new EffectComposer(renderer);
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
+
+            try {
+                const customPass = new ShaderPass(customShader);
+                customPass.renderToScreen = true;
+                composer.addPass(customPass);
+                console.log('✓ Shader compiled successfully');
+            } catch (error) {
+                console.error('❌ Shader compilation error:', error);
+                console.error('Check the fragment.glsl file for syntax errors');
+            }
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            const containerWidth = window.innerWidth;
+            const containerHeight = window.innerHeight * 0.5;
+
+            camera.aspect = containerWidth / containerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(containerWidth, containerHeight);
+            composer.setSize(containerWidth, containerHeight);
+        }
+
+        function loadModel(modelPath) {
+            if (currentModel) {
+                scene.remove(currentModel);
+            }
+
+            const loader = new GLTFLoader();
+            loader.load(
+                modelPath,
+                (gltf) => {
+                    currentModel = gltf.scene;
+
+                    // Replace all materials with flat white
+                    const whiteMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xffffff,
+                        flatShading: true
+                    });
+
+                    currentModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material = whiteMaterial;
+                        }
+                    });
+
+                    // Center and scale the model
+                    const box = new THREE.Box3().setFromObject(currentModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 7.5 / maxDim;
+
+                    currentModel.scale.multiplyScalar(scale);
+                    currentModel.position.sub(center.multiplyScalar(scale));
+
+                    scene.add(currentModel);
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading model:', error);
+                }
+            );
+        }
+
+        function showModel(modelPath) {
+            // Only reload if the model path has changed
+            if (currentModelPath !== modelPath) {
+                currentModelPath = modelPath;
+                loadModel(modelPath);
+            }
+            modelVisible = true;
+            modelContainer.classList.add('active');
+        }
+
+        function hideModel() {
+            if (modelVisible) {
+                modelVisible = false;
+                currentModelPath = null;
+                modelContainer.classList.remove('active');
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (modelVisible) {
+                controls.update();
+
+                // Update shader time uniform
+                const time = performance.now() * 0.001;
+                customShader.uniforms.time.value = time;
+
+                // Rotate the model using cosine (oscillates 180 degrees)
+                if (currentModel) {
+                    currentModel.rotation.y = Math.cos(time * 0.25) * (Math.PI / 2);
+                }
+
+                composer.render();
+            }
+        }
+
+        function updateClock() {
+            let hours, minutes, seconds;
+
+            if (simulatedTime) {
+                hours = String(simulatedTime.hours).padStart(2, '0');
+                minutes = String(simulatedTime.minutes).padStart(2, '0');
+                seconds = String(simulatedTime.seconds).padStart(2, '0');
+            } else {
+                const now = new Date();
+                hours = String(now.getHours()).padStart(2, '0');
+                minutes = String(now.getMinutes()).padStart(2, '0');
+                seconds = String(now.getSeconds()).padStart(2, '0');
+            }
+
+            const timeString = `${hours}:${minutes}:${seconds}`;
+            clockElement.textContent = timeString;
+
+            // Check for special times
+            const hourMinute = `${hours}:${minutes}`;
+
+            if (hourMinute === '07:47' || hourMinute === '19:47') {
+                showModel('boeing_747.glb');
+            } else if (hourMinute === '07:37' || hourMinute === '19:37') {
+                showModel('boeing_737.glb');
+            } else if (hourMinute === '07:57' || hourMinute === '19:57') {
+                showModel('boeing_757.glb');
+            } else if (hourMinute === '09:11' || hourMinute === '21:11') {
+                showModel('porsche_911.glb');
+            } else {
+                showModel('clock.glb');
+            }
+        }
+
+        // Button handlers
+        document.getElementById('btn-737').addEventListener('click', () => {
+            simulatedTime = { hours: 7, minutes: 37, seconds: 0 };
+            updateClock();
+        });
+
+        document.getElementById('btn-747').addEventListener('click', () => {
+            simulatedTime = { hours: 7, minutes: 47, seconds: 0 };
+            updateClock();
+        });
+
+        document.getElementById('btn-757').addEventListener('click', () => {
+            simulatedTime = { hours: 7, minutes: 57, seconds: 0 };
+            updateClock();
+        });
+
+        document.getElementById('btn-911').addEventListener('click', () => {
+            simulatedTime = { hours: 9, minutes: 11, seconds: 0 };
+            updateClock();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            simulatedTime = null;
+            updateClock();
+        });
+
+        // Initialize
+        async function init() {
+            await loadShader();
+            initThree();
+            animate();
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
