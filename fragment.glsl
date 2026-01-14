@@ -19,14 +19,18 @@ void main() {
     vec4 c4 = texture2D(tDiffuse, vUv + vec2(0.0, -delta));
 
     vec4 color = (c2 - c1) + (c4 - c3) + base * 0.4;
+    vec4 neon_green = vec4(0.2, 1.0, 0.3, 1.0);
 
-    color *= vec4(0.2, 1.0, 0.3, 1.0);
+    color *= neon_green;
 
+    // vignette
+    color += 0.3 * pow(length(vUv - vec2(0.5)), 2.0) * neon_green;
+
+    // pixelate
     float pixelator = floor(mod(vUv.y * 300.0,2.0)) * floor(mod(vUv.x * 300.0, 2.0));
-
     color *= 0.2 + pixelator;
 
-    color *= 1.0 + 0.2 * cos(vUv.y * 100.0 + time * 0.1);
+    color *= 1.0 + 0.2 * cos(vUv.y * 100.0 + time * 6.2832);
 
     color.a = 1.0;
 

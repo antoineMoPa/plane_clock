@@ -258,7 +258,7 @@
             composer.addPass(renderPass);
 
             try {
-                const customPass = new ShaderPass(customShader);
+                customPass = new ShaderPass(customShader);
                 customPass.renderToScreen = true;
                 composer.addPass(customPass);
                 console.log('✓ Shader compiled successfully');
@@ -346,11 +346,9 @@
 
             controls.update();
 
-            // Update shader time uniform
-            const time = performance.now() * 0.001;
-            if (customShader && customShader.uniforms && customShader.uniforms.time) {
-                customShader.uniforms.time.value = time;
-            }
+            // Update shader time uniform (loops every 30 seconds)
+            const time = (Date.now() * 0.001) % 30;
+            customPass.material.uniforms.time.value = time;
 
             // Rotate the model using cosine (oscillates 180 degrees)
             if (currentModel && modelVisible) {
