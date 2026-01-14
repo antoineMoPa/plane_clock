@@ -16,7 +16,7 @@ void main() {
     vec4 c3 = texture2D(tDiffuse, vUv + vec2(0.0, delta));
     vec4 c4 = texture2D(tDiffuse, vUv + vec2(0.0, -delta));
 
-    vec4 color = (c2 - c1) + (c4 - c3) + base * 0.1;
+    vec4 color = (c2 - c1) + (c4 - c3) + base * 0.5;
 
     color *= vec4(0.2, 1.0, 0.3, 1.0);
 
