@@ -123,7 +123,7 @@
             return new Promise((resolve, reject) => {
                 const loader = new FontLoader();
                 loader.load(
-                    'https://threejs.org/examples/fonts/helvetiker_bold.typeface.json',
+                    'VT323_Regular.json',
                     (loadedFont) => {
                         font = loadedFont;
                         console.log('✓ Font loaded successfully');
@@ -359,24 +359,36 @@
         }
 
         function updateClock() {
-            let hours, minutes, seconds;
+            let hours24, minutes, seconds;
 
             if (simulatedTime) {
-                hours = String(simulatedTime.hours).padStart(2, '0');
+                hours24 = simulatedTime.hours;
                 minutes = String(simulatedTime.minutes).padStart(2, '0');
                 seconds = String(simulatedTime.seconds).padStart(2, '0');
             } else {
+                // Get time offset from query param (in hours)
+                const urlParams = new URLSearchParams(window.location.search);
+                const timeOffset = parseFloat(urlParams.get('timeoffset')) || 0;
+
                 const now = new Date();
-                hours = String(now.getHours()).padStart(2, '0');
+                now.setHours(now.getHours() + timeOffset);
+
+                hours24 = now.getHours();
                 minutes = String(now.getMinutes()).padStart(2, '0');
                 seconds = String(now.getSeconds()).padStart(2, '0');
             }
 
-            const timeString = `${hours}h${minutes}:${seconds}`;
+            // Convert to 12-hour format with AM/PM
+            const ampm = hours24 >= 12 ? 'PM' : 'AM';
+            const hours12 = hours24 % 12 || 12; // Convert 0 to 12, and 13-23 to 1-11
+
+            // Flashing colon (toggles every second)
+            const colon = Math.floor(Date.now() / 1000) % 2 === 0 ? ':' : ' ';
+            const timeString = `${hours12}${colon}${minutes} ${ampm}`;
             updateTextMesh(timeString);
 
-            // Check for special times
-            const hourMinute = `${hours}:${minutes}`;
+            // Check for special times (using 24-hour format)
+            const hourMinute = `${String(hours24).padStart(2, '0')}:${minutes}`;
 
             if (hourMinute === '07:47' || hourMinute === '19:47') {
                 showModel('boeing_747.glb');
