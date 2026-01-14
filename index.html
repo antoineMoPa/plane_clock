@@ -154,9 +154,13 @@
             }
 
             // Create new text geometry
+            // Scale down text for mobile devices
+            const isMobile = window.innerWidth <= 768;
+            const textSize = isMobile ? 1.0 / 1.6 : 1.0;
+
             const textGeometry = new TextGeometry(timeString, {
                 font: font,
-                size: 1.0,
+                size: textSize,
                 height: 0.2,
                 curveSegments: 12,
                 bevelEnabled: true,
